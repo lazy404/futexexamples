@@ -35,24 +35,31 @@ typedef struct simplefu_semaphore *simplefu;
 
 
 
-void simplefu_wait(simplefu who)
+void simplefu_wait(int * s)
 {
   int val=0;
-  syscall(__NR_futex, &who->avail, FUTEX_WAIT, val, NULL, 0, 0);
+  syscall(__NR_futex, s, FUTEX_WAIT, val, NULL, 0, 0);
 }
+
+void simplefu_waitpi(int *s)
+{
+  int val=0;
+  syscall(__NR_futex, s, FUTEX_WAIT_REQUEUE_PI, val, NULL, s, 0);
+}
+
 
 int cmp=0;
 
-void simplefu_req(simplefu who)
+void simplefu_req(int *s)
 {
 //  futex(int *uaddr, int op, int val, *timeout, int *uaddr2, int val3);
-  syscall(__NR_futex, &who->avail, FUTEX_CMP_REQUEUE_PI, 1, NULL, &who->avail, 0);
+  syscall(__NR_futex, s, FUTEX_CMP_REQUEUE_PI, 1, NULL, s, 0);
 }
 
 
-void wake(simplefu who)
+void wake(int *s)
 {
-   syscall(__NR_futex, &who->avail, FUTEX_WAKE, 3, NULL, 0, 0);
+   syscall(__NR_futex, s, FUTEX_WAKE, 1, NULL, 0, 0);
 }
 
 
@@ -62,11 +69,11 @@ int main()
   int lockfile = open("ipc_lock", O_RDWR);
   assert(lockfile != -1);
 
-  simplefu sema = mmap(NULL, sizeof(*sema), PROT_READ|PROT_WRITE, MAP_SHARED, lockfile, 0);
+  int * sema = mmap(NULL, sizeof(*sema), PROT_READ|PROT_WRITE, MAP_SHARED, lockfile, 0);
   assert(sema != MAP_FAILED);
 
-  sema->avail=0;
-  printf("avail2 %x\n", sema->avail);
+  *sema=0;
+  printf("avail2 %d\n", *sema);
   
   pid = fork();
   assert(pid != -1);
@@ -76,7 +83,7 @@ int main()
     printf("child %d done\n", getpid());
     exit(0);
   }
-
+/*
   pid = fork();
   assert(pid != -1);
 
@@ -90,11 +97,11 @@ int main()
   assert(pid != -1);
 
   if( pid == 0 ) { // child
-    simplefu_wait(sema);
+    simplefu_waitpi(sema);
     printf("child %d done\n", getpid());
     exit(0);
   }
-
+*/
   sleep(1);
   printf("Waiting for childs...\n");
   //getchar();
